@@ -16,7 +16,11 @@ export default function App() {
         <Stack.Screen name="Welcome" component={Welcome} />
         <Stack.Screen name="Login" component={Login} />
         <Stack.Screen name="Register" component={Register} />
-        <Stack.Screen name="Home" component={Home} />
+        <Stack.Screen
+          name="Home"
+          component={Home}
+          options={{ headerShown: false }} // <-- Esto oculta el header blanco
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );
