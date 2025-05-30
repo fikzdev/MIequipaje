@@ -6,8 +6,10 @@ import { FontAwesome } from '@expo/vector-icons';
 import { BarCodeScanner } from 'expo-barcode-scanner';
 import MapView, { Marker } from 'react-native-maps';
 import { auth, db } from '../credenciales';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc} from 'firebase/firestore';
 import { SafeAreaView } from 'react-native';
+import markerImg from '../assets/marker.png';
+import { Image } from 'react-native';
 
 const Tab = createBottomTabNavigator();
 const Drawer = createDrawerNavigator();
@@ -64,24 +66,42 @@ function QRScannerScreen() {
     })();
   }, []);
 
-  const handleBarCodeScanned = ({ type, data }) => {
-    setScanned(true);
-    alert(`Código QR escaneado: ${data}`);
-  };
+  const handleBarCodeScanned = async ({ type, data }) => {
+  setScanned(true);
 
-  if (Platform.OS === 'android' && !BarCodeScanner.scanFromURLAsync) {
-    return (
-      <View style={[
-        styles.homeContainer,
-        { backgroundColor: colorScheme === 'dark' ? '#2d2233' : '#fff' }
-      ]}>
-        <Text style={{ color: 'red', padding: 20, textAlign: 'center' }}>
-          El escáner QR no está disponible en Expo Go con la nueva arquitectura.
-          Por favor usa `npx expo run:android` para probar esta funcionalidad.
-        </Text>
-      </View>
-    );
+  let info;
+  try {
+    info = JSON.parse(data);
+  } catch (e) {
+    alert('QR inválido');
+    return;
   }
+
+  if (!info.ubicacionId || !info.lockerId) {
+    alert('QR sin datos de locker');
+    return;
+  }
+
+  // Agrega este log para depurar
+  console.log('Buscando locker en:', info.ubicacionId, info.lockerId);
+
+  try {
+    const lockerDoc = await getDoc(
+      doc(db, 'Ubicacion', info.ubicacionId, 'lockers', info.lockerId)
+    );
+    if (lockerDoc.exists()) {
+      const locker = lockerDoc.data();
+      alert(
+        `Locker: ${info.lockerId}\nEstado: ${locker.estado}\n¿Deseas ocuparlo?`
+      );
+    } else {
+      alert('Locker no encontrado');
+    }
+  } catch (e) {
+    console.log('Error Firestore:', e);
+    alert('Error buscando locker');
+  }
+};
 
   if (hasPermission === null) {
     return <Text>Solicitando permiso para usar la cámara...</Text>;
@@ -242,27 +262,33 @@ function MapScreen({ navigation }) {
       >
         {/* Marcador fijo de prueba */}
         <Marker
-          coordinate={{ latitude: -36.795048, longitude: -73.062398 }}
-          onPress={handleFixedMarkerPress}
-        >
-          <FontAwesome name="map-marker" size={44} color={colorScheme === 'dark' ? "#FFA500" : "#FFA500"} />
-        </Marker>
-        {/* Marcadores de Firestore */}
-        {markers.map((ubicacion, index) => (
-          <Marker
-            key={ubicacion.id || index}
-            coordinate={{
-              latitude: ubicacion.latitud,
-              longitude: ubicacion.longitud,
-            }}
-            onPress={() => handleMarkerPress(index)}
-            tracksViewChanges={false}
-          >
-            <Animated.View style={{ transform: [{ scale: selectedMarker === index ? scaleAnim : 1 }] }}>
-              <FontAwesome name="map-marker" size={44} color={colorScheme === 'dark' ? "#FFA500" : "#FFA500"} />
-            </Animated.View>
-          </Marker>
-        ))}
+  coordinate={{ latitude: -36.795048, longitude: -73.062398 }}
+  onPress={handleFixedMarkerPress}
+  anchor={{ x: 0.5, y: 1 }} // <-- Agrega esto
+>
+  <Image
+    source={markerImg}
+    style={{ width: 40, height: 40, resizeMode: 'contain' }}
+  />
+</Marker>
+
+{markers.map((ubicacion, index) => (
+  <Marker
+    key={ubicacion.id || index}
+    coordinate={{
+      latitude: ubicacion.latitud,
+      longitude: ubicacion.longitud,
+    }}
+    onPress={() => handleMarkerPress(index)}
+    tracksViewChanges={false}
+    anchor={{ x: 0.5, y: 1 }} // <-- Agrega esto
+  >
+    <Image
+      source={markerImg}
+      style={{ width: 40, height: 40, resizeMode: 'contain' }}
+    />
+  </Marker>
+))}
       </MapView>
 
       {/* Botón flotante para escanear QR */}
